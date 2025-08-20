@@ -1,0 +1,229 @@
+# docker-compose.yml - Komplett NAV Integration Demo miljø
+# Starter alle nødvendige tjenester for hendelsesdreven arkitektur
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: nav-postgres
+    environment:
+      POSTGRES_DB: navdb
+      POSTGRES_USER: nav_user
+      POSTGRES_PASSWORD: nav_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nav_user -d navdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: nav-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka Message Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: nav-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      
+      # Listeners konfigurasjon
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092,DOCKER://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092,DOCKER://kafka:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,DOCKER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      
+      # Performance og retention settings
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      
+      # Auto-create topics
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  # Kafka UI for administrasjon og monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: nav-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: nav-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9094
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - nav-network
+
+  # Redis for caching (optional, men nyttig for skalering)
+  redis:
+    image: redis:7-alpine
+    container_name: nav-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Main Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nav-integration-app
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      # Database konfigurasjon
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/navdb
+      SPRING_DATASOURCE_USERNAME: nav_user
+      SPRING_DATASOURCE_PASSWORD: nav_password
+      
+      # Kafka konfigurasjon  
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9094
+      
+      # Redis konfigurasjon
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      
+      # Application konfigurasjon
+      SPRING_PROFILES_ACTIVE: production
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+      LOGGING_LEVEL_NO_NAV_INTEGRATION: INFO
+      
+      # JVM settings
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/nav-integration/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # Prometheus for metrics (monitoring)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nav-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - nav-network
+
+  # Grafana for dashboards (monitoring)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nav-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    networks:
+      - nav-network
+
+  # Nginx reverse proxy og static files
+  nginx:
+    image: nginx:alpine
+    container_name: nav-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - app
+    networks:
+      - nav-network
+
+# Networks
+networks:
+  nav-network:
+    driver: bridge
+    name: nav-integration-network
+
+# Volumes for data persistence
+volumes:
+  postgres_data:
+    name: nav_postgres_data
+  kafka_data:
+    name: nav_kafka_data
+  redis_data:
+    name: nav_redis_data
+  prometheus_data:
+    name: nav_prometheus_data
+  grafana_data:
+    name: nav_grafana_data
+
+# Health check script for entire stack
+# Kjør: docker-compose exec app curl -f http://localhost:8080/nav-integration/actuator/health

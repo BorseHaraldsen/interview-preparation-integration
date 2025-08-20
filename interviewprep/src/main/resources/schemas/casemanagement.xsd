@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+           targetNamespace="http://nav.no/integration/casemanagement"
+           xmlns:tns="http://nav.no/integration/casemanagement" 
+           elementFormDefault="qualified">
+
+    <!-- Case Management Request/Response Types -->
+    
+    <xs:element name="createCaseRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="nationalId" type="xs:string"/>
+                <xs:element name="caseType" type="tns:caseType"/>
+                <xs:element name="description" type="xs:string"/>
+                <xs:element name="priority" type="tns:priority" minOccurs="0"/>
+                <xs:element name="metadata" type="tns:caseMetadata" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="createCaseResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="caseId" type="xs:long"/>
+                <xs:element name="status" type="tns:caseStatus"/>
+                <xs:element name="createdTimestamp" type="xs:dateTime"/>
+                <xs:element name="result" type="tns:operationResult"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="updateCaseStatusRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="caseId" type="xs:long"/>
+                <xs:element name="newStatus" type="tns:caseStatus"/>
+                <xs:element name="comment" type="xs:string" minOccurs="0"/>
+                <xs:element name="updatedBy" type="xs:string"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="updateCaseStatusResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="success" type="xs:boolean"/>
+                <xs:element name="updatedTimestamp" type="xs:dateTime"/>
+                <xs:element name="result" type="tns:operationResult"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="getCaseRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="caseId" type="xs:long"/>
+                <xs:element name="includeHistory" type="xs:boolean" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="getCaseResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="case" type="tns:caseInfo"/>
+                <xs:element name="result" type="tns:operationResult"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- Complex Types -->
+    
+    <xs:complexType name="caseInfo">
+        <xs:sequence>
+            <xs:element name="caseId" type="xs:long"/>
+            <xs:element name="nationalId" type="xs:string"/>
+            <xs:element name="caseType" type="tns:caseType"/>
+            <xs:element name="status" type="tns:caseStatus"/>
+            <xs:element name="description" type="xs:string"/>
+            <xs:element name="createdTimestamp" type="xs:dateTime"/>
+            <xs:element name="lastModifiedTimestamp" type="xs:dateTime"/>
+            <xs:element name="priority" type="tns:priority"/>
+            <xs:element name="metadata" type="tns:caseMetadata" minOccurs="0"/>
+            <xs:element name="history" type="tns:caseHistory" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="caseMetadata">
+        <xs:sequence>
+            <xs:element name="sourceSystem" type="xs:string"/>
+            <xs:element name="externalCaseId" type="xs:string" minOccurs="0"/>
+            <xs:element name="assignedTo" type="xs:string" minOccurs="0"/>
+            <xs:element name="tags" type="tns:tagList" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="caseHistory">
+        <xs:sequence>
+            <xs:element name="entry" type="tns:historyEntry" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="historyEntry">
+        <xs:sequence>
+            <xs:element name="timestamp" type="xs:dateTime"/>
+            <xs:element name="action" type="xs:string"/>
+            <xs:element name="performedBy" type="xs:string"/>
+            <xs:element name="oldValue" type="xs:string" minOccurs="0"/>
+            <xs:element name="newValue" type="xs:string" minOccurs="0"/>
+            <xs:element name="comment" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="tagList">
+        <xs:sequence>
+            <xs:element name="tag" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="operationResult">
+        <xs:sequence>
+            <xs:element name="success" type="xs:boolean"/>
+            <xs:element name="errorCode" type="xs:string" minOccurs="0"/>
+            <xs:element name="errorMessage" type="xs:string" minOccurs="0"/>
+            <xs:element name="warnings" type="tns:warningList" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="warningList">
+        <xs:sequence>
+            <xs:element name="warning" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Enumerations -->
+    
+    <xs:simpleType name="caseType">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="DAGPENGER"/>
+            <xs:enumeration value="SYKEPENGER"/>
+            <xs:enumeration value="BARNETRYGD"/>
+            <xs:enumeration value="AAP"/>
+            <xs:enumeration value="UFORETRYGD"/>
+            <xs:enumeration value="ALDERSPENSJON"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="caseStatus">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="MOTTATT"/>
+            <xs:enumeration value="UNDER_BEHANDLING"/>
+            <xs:enumeration value="VEDTAK_FATTET"/>
+            <xs:enumeration value="UTBETALT"/>
+            <xs:enumeration value="AVVIST"/>
+            <xs:enumeration value="AVSLUTTET"/>
+            <xs:enumeration value="VENTER_DOKUMENTASJON"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="priority">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="LOW"/>
+            <xs:enumeration value="NORMAL"/>
+            <xs:enumeration value="HIGH"/>
+            <xs:enumeration value="URGENT"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+</xs:schema>

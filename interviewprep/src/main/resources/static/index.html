@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAV Integration Demo - Intervju</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            margin: 0;
+            font-size: 2.5em;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.2em;
+            margin: 10px 0 0 0;
+        }
+
+        .demo-section {
+            margin: 30px 0;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            border-left: 5px solid #667eea;
+        }
+
+        .demo-section h2 {
+            color: #667eea;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin: 15px 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin: 10px 10px 10px 0;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .response.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .response.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .quick-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .quick-link {
+            display: block;
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .quick-link:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #28a745;
+        }
+
+        .status-offline {
+            background: #dc3545;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 NAV Integration Demo</h1>
+            <p>Demonstrasjon av moderne integrasjonsmønstre for intervju</p>
+            <div style="margin-top: 15px;">
+                <span class="status-indicator status-online"></span>
+                <span id="app-status">Spring Boot App: Kobler til...</span>
+            </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="demo-section">
+            <h2>🔗 Quick Links</h2>
+            <div class="quick-links">
+                <a href="http://localhost:8080/interviewprep/h2-console" target="_blank" class="quick-link">
+                    🗄️ H2 Database Console
+                </a>
+                <a href="http://localhost:8080/interviewprep/actuator/health" target="_blank" class="quick-link">
+                    ❤️ Health Check
+                </a>
+                <a href="http://localhost:8080/interviewprep/actuator/metrics" target="_blank" class="quick-link">
+                    📊 Metrics
+                </a>
+                <a href="#" onclick="testAllEndpoints()" class="quick-link">
+                    🧪 Test All APIs
+                </a>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Full Integration Demo -->
+            <div class="demo-section">
+                <h2>🎯 Full Integration Demo</h2>
+                <p><strong>Dette viser hele integrasjonsflyten fra A til Å!</strong></p>
+                
+                <div class="form-group">
+                    <label>Fødselsnummer (11 siffer):</label>
+                    <input type="text" id="fullDemo-fnr" value="99999999999" maxlength="11">
+                </div>
+                
+                <div class="form-group">
+                    <label>Sakstype:</label>
+                    <select id="fullDemo-type">
+                        <option value="DAGPENGER">Dagpenger</option>
+                        <option value="SYKEPENGER">Sykepenger</option>
+                        <option value="AAP">Arbeidsavklaringspenger</option>
+                        <option value="BARNETRYGD">Barnetrygd</option>
+                        <option value="UFORETRYGD">Uføretrygd</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Beskrivelse:</label>
+                    <textarea id="fullDemo-beskrivelse" rows="3">Demo sak opprettet via frontend for intervju demonstrasjon</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="fullDemo-autoStart" checked>
+                        Start saksbehandling automatisk
+                    </label>
+                </div>
+                
+                <button class="btn" onclick="runFullDemo()">🚀 Kjør Full Demo</button>
+                <div id="fullDemo-response" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Kafka Test -->
+            <div class="demo-section">
+                <h2>📨 Kafka Event Test</h2>
+                <p><strong>Test event-driven arkitektur</strong></p>
+                
+                <div class="form-group">
+                    <label>Test melding:</label>
+                    <input type="text" id="kafka-melding" value="Intervju demo Kafka test">
+                </div>
+                
+                <button class="btn" onclick="testKafka()">📨 Send Kafka Event</button>
+                <div id="kafka-response" class="response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- External API Test -->
+            <div class="demo-section">
+                <h2>🌐 Eksterne API Test</h2>
+                <p><strong>Test REST integrasjoner med resiliens</strong></p>
+                
+                <div class="form-group">
+                    <label>Fødselsnummer:</label>
+                    <input type="text" id="api-fnr" value="12345678901">
+                </div>
+                
+                <button class="btn" onclick="testExternalAPI()">🌐 Test Eksterne APIer</button>
+                <div id="api-response" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Auto Processing Test -->
+            <div class="demo-section">
+                <h2>🤖 Automatisk Behandling</h2>
+                <p><strong>Test AI/ML automatisering</strong></p>
+                
+                <button class="btn" onclick="testAutoProcessing()">🤖 Start Auto-behandling</button>
+                <button class="btn btn-secondary" onclick="viewWorkList()">📋 Vis Arbeidsliste</button>
+                <div id="auto-response" class="response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Database Viewer -->
+        <div class="demo-section">
+            <h2>🗄️ Database Viewer</h2>
+            <p><strong>Vis data direkte fra database</strong></p>
+            
+            <button class="btn" onclick="viewUsers()">👥 Vis Brukere</button>
+            <button class="btn" onclick="viewCases()">📁 Vis Saker</button>
+            <button class="btn btn-secondary" onclick="viewStats()">📊 Vis Statistikk</button>
+            <div id="db-response" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:8080/interviewprep/api/v1';
+        
+        // Check app status on load
+        window.onload = function() {
+            checkAppStatus();
+        };
+
+        async function checkAppStatus() {
+            try {
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/health`);
+                if (response.ok) {
+                    document.getElementById('app-status').innerHTML = 
+                        '<span class="status-indicator status-online"></span>Spring Boot App: Online ✅';
+                } else {
+                    throw new Error('Not responding');
+                }
+            } catch (error) {
+                document.getElementById('app-status').innerHTML = 
+                    '<span class="status-indicator status-offline"></span>Spring Boot App: Offline ❌';
+            }
+        }
+
+        async function runFullDemo() {
+            const fnr = document.getElementById('fullDemo-fnr').value;
+            const type = document.getElementById('fullDemo-type').value;
+            const beskrivelse = document.getElementById('fullDemo-beskrivelse').value;
+            const autoStart = document.getElementById('fullDemo-autoStart').checked;
+
+            const payload = {
+                fnr: fnr,
+                saksType: type,
+                beskrivelse: beskrivelse,
+                autoStart: autoStart
+            };
+
+            try {
+                showResponse('fullDemo-response', 'Kjører full integrasjon demo...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/full-demo`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                showResponse('fullDemo-response', JSON.stringify(result, null, 2), 
+                           response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResponse('fullDemo-response', `Feil: ${error.message}`, 'error');
+            }
+        }
+
+        async function testKafka() {
+            const melding = document.getElementById('kafka-melding').value;
+            
+            try {
+                showResponse('kafka-response', 'Sender Kafka event...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/test-kafka`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ melding: melding })
+                });
+
+                const result = await response.json();
+                showResponse('kafka-response', JSON.stringify(result, null, 2), 
+                           response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResponse('kafka-response', `Feil: ${error.message}`, 'error');
+            }
+        }
+
+        async function testExternalAPI() {
+            const fnr = document.getElementById('api-fnr').value;
+            
+            try {
+                showResponse('api-response', 'Tester eksterne APIer...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/test-ekstern-api/${fnr}`);
+                const result = await response.json();
+                
+                showResponse('api-response', JSON.stringify(result, null, 2), 
+                           response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResponse('api-response', `Feil: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAutoProcessing() {
+            try {
+                showResponse('auto-response', 'Starter automatisk behandling...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/auto-behandling`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                showResponse('auto-response', JSON.stringify(result, null, 2), 
+                           response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResponse('auto-response', `Feil: ${error.message}`, 'error');
+            }
+        }
+
+        async function viewWorkList() {
+            try {
+                showResponse('auto-response', 'Henter arbeidsliste...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/saker/arbeidsliste`);
+                const result = await response.json();
+                
+                showResponse('auto-response', 
+                    `Arbeidsliste (${result.length} saker):\n` + JSON.stringify(result, null, 2), 
+                    'success');
+            } catch (error) {
+                showResponse('auto-response', `Feil: ${error.message}`, 'error');
+            }
+        }
+
+        async function viewUsers() {
+            try {
+                showResponse('db-response', 'Henter brukere...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/brukere`);
+                const result = await response.json();
+                
+                showResponse('db-response', 
+                    `Brukere (${result.length} totalt):\n` + JSON.stringify(result, null, 2), 
+                    'success');
+            } catch (error) {
+                showResponse('db-response', `Feil: ${error.message}`, 'error');
+            }
+        }
+
+        async function viewCases() {
+            try {
+                showResponse('db-response', 'Henter saker...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/saker/arbeidsliste`);
+                const result = await response.json();
+                
+                showResponse('db-response', 
+                    `Aktive saker (${result.length} totalt):\n` + JSON.stringify(result, null, 2), 
+                    'success');
+            } catch (error) {
+                showResponse('db-response', `Feil: ${error.message}`, 'error');
+            }
+        }
+
+        async function viewStats() {
+            showResponse('db-response', 
+                'Statistikk simulering:\n' +
+                '- Totale brukere: 5\n' +
+                '- Aktive saker: Varierer\n' +
+                '- Gjennomsnittlig behandlingstid: 7 dager\n' +
+                '- Automatiseringsgrad: 60%\n\n' +
+                'I produksjon ville dette vært hentet fra database med komplekse queries.', 
+                'success');
+        }
+
+        async function testAllEndpoints() {
+            alert('Tester alle endpoints... Sjekk console for resultater!');
+            
+            console.log('🧪 Testing all endpoints...');
+            
+            // Test health
+            try {
+                const health = await fetch(`${BASE_URL}/integrasjon-demo/health`);
+                console.log('✅ Health check:', await health.json());
+            } catch (e) {
+                console.log('❌ Health check failed:', e);
+            }
+            
+            // Test Kafka
+            try {
+                const kafka = await fetch(`${BASE_URL}/integrasjon-demo/test-kafka`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ melding: 'Auto test' })
+                });
+                console.log('✅ Kafka test:', await kafka.json());
+            } catch (e) {
+                console.log('❌ Kafka test failed:', e);
+            }
+            
+            console.log('🎉 All tests completed! Check individual results above.');
+        }
+
+        function showResponse(elementId, content, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = content;
+            element.className = `response ${type}`;
+            element.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
