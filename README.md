@@ -5,7 +5,7 @@ This project is focused on building, testing, and refining integration workflows
 
 ---
 
-## 📌 Overview
+##  Overview
 
 This repository contains:
 - Sample integration workflows
@@ -15,5 +15,5 @@ This repository contains:
 
 ---
 
-## 📂 Project Structure
+##  Project Structure
 
