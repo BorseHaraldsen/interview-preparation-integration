@@ -45,7 +45,7 @@ public class SecurityConfig {
             
             // Configure security headers
             .headers(headers -> headers
-                .frameOptions().deny()
+                .frameOptions().sameOrigin() // Allow H2 console to work
                 .contentTypeOptions().and()
                 .httpStrictTransportSecurity(hstsConfig -> hstsConfig
                     .includeSubDomains(true)
@@ -57,19 +57,25 @@ public class SecurityConfig {
             // Configure authorization rules
             .authorizeHttpRequests(authz -> authz
                 // Public endpoints
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                .requestMatchers("/health").permitAll() // Simple health check
+                .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll() // Development only
                 .requestMatchers("/ws/**").permitAll() // SOAP endpoints
                 .requestMatchers("/camel/**").permitAll() // Camel endpoints
+                .requestMatchers("/", "/index.html", "/static/**", "/css/**", "/js/**", "/images/**").permitAll() // Frontend
                 
-                // API endpoints require authentication
-                .requestMatchers("/api/v1/integrasjon-demo/health").permitAll()
-                .requestMatchers("/api/v1/brukere/**").hasRole("USER_READ")
-                .requestMatchers("/api/v1/saker/**").hasRole("CASE_READ")
+                // Demo and health endpoints - public for frontend connectivity
+                .requestMatchers("/api/v1/enterprise/health").permitAll()
+                .requestMatchers("/api/v1/integrasjon-demo/**").permitAll()
+                .requestMatchers("/api/v1/brukere/**").permitAll() // Demo access
+                .requestMatchers("/api/v1/saker/**").permitAll() // Demo access
+                .requestMatchers("/api/v1/enterprise/**").permitAll() // Demo access
+                
+                // Admin endpoints still require authentication
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 
-                // All other requests require authentication
-                .anyRequest().authenticated()
+                // All other requests are now public for demo purposes
+                .anyRequest().permitAll()
             )
             
             // Configure OAuth 2.0 resource server

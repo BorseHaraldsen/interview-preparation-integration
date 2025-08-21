@@ -1,0 +1,206 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zookeeper-pvc
+  namespace: nav-integration
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: gp2
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-pvc
+  namespace: nav-integration
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: gp2
+---
+# Zookeeper Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  namespace: nav-integration
+  labels:
+    app: zookeeper
+    component: messaging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+      - name: zookeeper
+        image: confluentinc/cp-zookeeper:7.4.0
+        ports:
+        - containerPort: 2181
+          name: client
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+        - name: ZOOKEEPER_DATA_DIR
+          value: "/var/lib/zookeeper/data"
+        - name: ZOOKEEPER_LOG_DIR
+          value: "/var/lib/zookeeper/logs"
+        volumeMounts:
+        - name: zookeeper-storage
+          mountPath: /var/lib/zookeeper
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: 2181
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 2181
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: zookeeper-storage
+        persistentVolumeClaim:
+          claimName: zookeeper-pvc
+---
+# Zookeeper Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+  namespace: nav-integration
+  labels:
+    app: zookeeper
+spec:
+  type: ClusterIP
+  ports:
+  - port: 2181
+    targetPort: 2181
+    name: client
+  selector:
+    app: zookeeper
+---
+# Kafka Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: nav-integration
+  labels:
+    app: kafka
+    component: messaging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+      - name: kafka
+        image: confluentinc/cp-kafka:7.4.0
+        ports:
+        - containerPort: 9092
+          name: kafka
+        - containerPort: 9101
+          name: jmx
+        env:
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "zookeeper:2181"
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://kafka:9092"
+        - name: KAFKA_LISTENERS
+          value: "PLAINTEXT://0.0.0.0:9092"
+        - name: KAFKA_BROKER_ID
+          value: "1"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+          value: "1"
+        - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+          value: "1"
+        - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+          value: "0"
+        - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+          value: "true"
+        - name: KAFKA_LOG_DIRS
+          value: "/var/lib/kafka/data"
+        # JMX monitoring
+        - name: KAFKA_JMX_PORT
+          value: "9101"
+        - name: KAFKA_JMX_HOSTNAME
+          value: "kafka"
+        volumeMounts:
+        - name: kafka-storage
+          mountPath: /var/lib/kafka
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 45
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: kafka-storage
+        persistentVolumeClaim:
+          claimName: kafka-pvc
+      # Wait for Zookeeper to be ready
+      initContainers:
+      - name: wait-for-zookeeper
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z zookeeper 2181; do sleep 2; done']
+---
+# Kafka Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: nav-integration
+  labels:
+    app: kafka
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9092
+    targetPort: 9092
+    name: kafka
+  - port: 9101
+    targetPort: 9101
+    name: jmx
+  selector:
+    app: kafka

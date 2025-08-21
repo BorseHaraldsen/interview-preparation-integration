@@ -1,0 +1,274 @@
+# Network policies for security and traffic control
+# 
+# These policies implement defense-in-depth security by controlling
+# network traffic between different components of the NAV integration platform.
+
+# Allow API Gateway to communicate with all services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-gateway-policy
+  namespace: nav-integration
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - {}  # Allow all ingress (external traffic)
+  egress:
+  - to:  # Allow egress to all services in namespace
+    - namespaceSelector:
+        matchLabels:
+          name: nav-integration
+  - to:  # Allow DNS resolution
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+---
+# Main application network policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nav-integration-app-policy
+  namespace: nav-integration
+spec:
+  podSelector:
+    matchLabels:
+      app: nav-integration-app
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:  # Allow traffic from API Gateway
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:  # Allow monitoring scraping
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:  # Allow connection to PostgreSQL
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:  # Allow connection to Kafka
+    - podSelector:
+        matchLabels:
+          app: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+  - to:  # Allow connection to RabbitMQ
+    - podSelector:
+        matchLabels:
+          app: rabbitmq
+    ports:
+    - protocol: TCP
+      port: 5672
+  - to:  # Allow connection to Redis
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to:  # Allow connection to Zipkin
+    - podSelector:
+        matchLabels:
+          app: zipkin
+    ports:
+    - protocol: TCP
+      port: 9411
+  - to:  # Allow connection to external services
+    - podSelector:
+        matchLabels:
+          component: external-service
+    ports:
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8082
+    - protocol: TCP
+      port: 8083
+    - protocol: TCP
+      port: 8084
+  - to:  # Allow DNS resolution
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+---
+# Database access policy - restrict to main app only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-policy
+  namespace: nav-integration
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nav-integration-app
+    ports:
+    - protocol: TCP
+      port: 5432
+---
+# Kafka access policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-policy
+  namespace: nav-integration
+spec:
+  podSelector:
+    matchLabels:
+      app: kafka
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nav-integration-app
+    ports:
+    - protocol: TCP
+      port: 9092
+  - from:  # Allow monitoring
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 9101
+  egress:
+  - to:  # Allow connection to Zookeeper
+    - podSelector:
+        matchLabels:
+          app: zookeeper
+    ports:
+    - protocol: TCP
+      port: 2181
+---
+# RabbitMQ access policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rabbitmq-policy
+  namespace: nav-integration
+spec:
+  podSelector:
+    matchLabels:
+      app: rabbitmq
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nav-integration-app
+    ports:
+    - protocol: TCP
+      port: 5672
+  - from:  # Allow management UI access (can be restricted further)
+    - {}
+    ports:
+    - protocol: TCP
+      port: 15672
+  - from:  # Allow monitoring
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 15692
+---
+# External services policy - allow only from main app and API gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: external-services-policy
+  namespace: nav-integration
+spec:
+  podSelector:
+    matchLabels:
+      component: external-service
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nav-integration-app
+  - from:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+  - from:  # Allow monitoring
+    - podSelector:
+        matchLabels:
+          app: prometheus
+---
+# Monitoring services policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-policy
+  namespace: nav-integration
+spec:
+  podSelector:
+    matchLabels:
+      component: monitoring
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - {}  # Allow access to monitoring UIs
+  egress:
+  - to:  # Allow scraping all pods in namespace
+    - namespaceSelector:
+        matchLabels:
+          name: nav-integration
+  - to:  # Allow DNS resolution
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+---
+# Default deny-all policy for additional security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: nav-integration
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress

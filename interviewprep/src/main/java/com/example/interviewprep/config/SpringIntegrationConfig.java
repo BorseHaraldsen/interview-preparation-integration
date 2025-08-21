@@ -26,20 +26,43 @@ import java.time.Duration;
 import java.util.Map;
 
 /**
- * Spring Integration configuration for ETL pipelines and data processing flows.
+ * Spring Integration Configuration
  * 
- * Implements enterprise integration patterns for data transformation and routing:
- * - File-based data ingestion and processing
- * - Database polling and change detection
- * - Message transformation and enrichment
- * - Error handling and dead letter queues
- * - Batch processing and aggregation
+ * Implements Enterprise Integration Patterns (EIP) for data processing flows:
+ * 
+ * Message Flow Patterns:
+ * - File Adapter Pattern: Monitors directories for incoming data files
+ * - Database Polling Pattern: Implements Change Data Capture (CDC) for real-time sync
+ * - Content-Based Router: Routes messages based on payload content
+ * - Message Translator: Transforms message formats between systems
+ * - Aggregator: Batches individual messages for bulk processing
+ * - Dead Letter Queue: Handles failed message processing with retry logic
+ * 
+ * Channel Types:
+ * - DirectChannel: Synchronous point-to-point communication
+ * - PublishSubscribeChannel: One-to-many message distribution
+ * - QueueChannel: Asynchronous buffered message handling
+ * 
+ * Processing Strategy:
+ * Uses polling consumers with configurable intervals to balance
+ * resource usage against processing latency requirements.
  */
 @Configuration
 public class SpringIntegrationConfig {
 
     /**
-     * Default poller configuration for integration flows.
+     * Default Polling Configuration
+     * 
+     * Configures the polling behavior for all integration endpoints that
+     * use polling consumers (file adapters, database adapters, etc.).
+     * 
+     * Polling Strategy:
+     * - Interval: 30 seconds between polls to balance load vs latency
+     * - Batch Size: Maximum 10 messages per poll to prevent memory issues
+     * - Trigger: Fixed delay ensures consistent processing intervals
+     * 
+     * This configuration prevents overwhelming downstream systems while
+     * maintaining reasonable response times for data processing.
      */
     @Bean
     public PollerMetadata defaultPoller() {
@@ -50,8 +73,25 @@ public class SpringIntegrationConfig {
     }
 
     /**
-     * File-based ETL pipeline for processing external data files.
-     * Monitors directory for new files and processes them through transformation pipeline.
+     * File Processing Integration Flow
+     * 
+     * Implements the File Adapter Enterprise Integration Pattern:
+     * 
+     * Flow Architecture:
+     * 1. File Inbound Adapter: Monitors directory for new files
+     * 2. Header Enricher: Adds metadata for message tracking
+     * 3. File-to-String Transformer: Converts file content to string payload
+     * 4. Content-Based Router: Routes based on file extension
+     * 
+     * Routing Logic:
+     * - CSV files → csvProcessingChannel (structured data processing)
+     * - XML files → xmlProcessingChannel (hierarchical data processing)
+     * - JSON files → jsonProcessingChannel (document processing)
+     * - Unknown formats → unknownFormatChannel (error handling)
+     * 
+     * Processing Strategy:
+     * Uses 5-second polling interval for responsive file pickup
+     * while avoiding excessive filesystem scanning overhead.
      */
     @Bean
     public IntegrationFlow fileProcessingFlow() {
@@ -70,21 +110,36 @@ public class SpringIntegrationConfig {
     }
 
     /**
-     * Database polling ETL pipeline for change data capture.
-     * Polls database for changes and processes delta updates.
+     * Database Polling Integration Flow - Change Data Capture (CDC)
+     * 
+     * Implements polling-based CDC for real-time data synchronization:
+     * 
+     * CDC Strategy:
+     * - Tracks last processed timestamp in sync_status table
+     * - Polls for records with sist_endret > last_processed
+     * - Updates sync_status after successful processing
+     * 
+     * Flow Architecture:
+     * 1. JDBC Polling Adapter: Executes delta query every 60 seconds
+     * 2. Header Enricher: Adds source and processing metadata
+     * 3. Message Filter: Excludes empty result sets
+     * 4. Transformer: Converts database rows to message payload
+     * 
+     * Note: Currently disabled due to sync_status table initialization
+     * dependency that conflicts with Hibernate schema creation sequence.
      */
-    @Bean
-    public IntegrationFlow databasePollingFlow(DataSource dataSource) {
-        return IntegrationFlow
-                .from(databaseSource(dataSource), c -> c.poller(Pollers.fixedDelay(60000)))
-                .enrichHeaders(h -> h.header("source", "database")
-                                   .header("processTime", System.currentTimeMillis()))
-                .channel("databaseChangeChannel")
-                .transform("payload.toString()")
-                .filter("payload.length() > 0")
-                .handle(m -> System.out.println("Database change: " + m.getPayload()))
-                .get();
-    }
+    // @Bean
+    // public IntegrationFlow databasePollingFlow(DataSource dataSource) {
+    //     return IntegrationFlow
+    //             .from(databaseSource(dataSource), c -> c.poller(Pollers.fixedDelay(60000)))
+    //             .enrichHeaders(h -> h.header("source", "database")
+    //                                .header("processTime", System.currentTimeMillis()))
+    //             .channel("databaseChangeChannel")
+    //             .transform("payload.toString()")
+    //             .filter("payload.length() > 0")
+    //             .handle(m -> System.out.println("Database change: " + m.getPayload()))
+    //             .get();
+    // }
 
     /**
      * CSV file processing pipeline with data validation and transformation.

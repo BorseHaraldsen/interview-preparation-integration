@@ -43,4 +43,10 @@ public interface KafkaProducerInterface {
      * Send health check hendelse for monitorering
      */
     void sendHealthCheckHendelse();
+    
+    /**
+     * Send generic event to specified topic
+     * Used for flexible event publishing in dual messaging patterns
+     */
+    void sendGenericEvent(String topic, Object eventData);
 }

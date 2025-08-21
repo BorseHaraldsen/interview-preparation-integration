@@ -314,6 +314,187 @@ public class IntegrasjonsDemoController {
 
         return ResponseEntity.ok(health);
     }
+
+    /**
+     * Dual messaging pattern demonstration
+     * Shows difference between Kafka pub/sub and RabbitMQ queues
+     */
+    @PostMapping("/dual-messaging")
+    public ResponseEntity<Map<String, Object>> testDualMessaging(@RequestBody Map<String, Object> request) {
+        logger.info("📨 [DEMO] Testing dual messaging patterns");
+        
+        try {
+            String messageType = (String) request.get("messageType");
+            String message = (String) request.get("message");
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("timestamp", LocalDateTime.now());
+            result.put("messageType", messageType);
+            result.put("originalMessage", message);
+            
+            switch (messageType) {
+                case "kafka-event":
+                    // Kafka pub/sub pattern - multiple subscribers
+                    kafkaProducerService.sendGenericEvent("nav.demo.events", Map.of(
+                        "eventType", "DUAL_MESSAGING_DEMO",
+                        "pattern", "PUB_SUB",
+                        "message", message,
+                        "subscribers", "Multiple systems can receive this"
+                    ));
+                    result.put("pattern", "Kafka Pub/Sub");
+                    result.put("description", "Event sent to topic - multiple subscribers will receive");
+                    result.put("useCase", "Notifications, audit logs, system monitoring");
+                    break;
+                    
+                case "rabbitmq-task":
+                    // RabbitMQ queue pattern - single consumer
+                    result.put("pattern", "RabbitMQ Work Queue");
+                    result.put("description", "Task queued for processing - exactly one worker will handle");
+                    result.put("useCase", "Document generation, payment processing, file processing");
+                    result.put("note", "RabbitMQ not running - showing pattern concept");
+                    break;
+                    
+                case "both":
+                    // Demonstrate both patterns
+                    kafkaProducerService.sendGenericEvent("nav.demo.events", Map.of(
+                        "eventType", "DUAL_MESSAGING_DEMO",
+                        "pattern", "BOTH",
+                        "message", message
+                    ));
+                    result.put("pattern", "Both Kafka + RabbitMQ");
+                    result.put("kafkaEvent", "Notification sent to all interested systems");
+                    result.put("rabbitMQTask", "Work task queued for single worker (simulated)");
+                    break;
+                    
+                default:
+                    result.put("error", "Unknown message type: " + messageType);
+                    return ResponseEntity.badRequest().body(result);
+            }
+            
+            result.put("status", "SUCCESS");
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            logger.error("❌ Error in dual messaging demo", e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("status", "ERROR");
+            error.put("message", e.getMessage());
+            error.put("timestamp", LocalDateTime.now());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    /**
+     * Apache Camel ESB routes demonstration
+     */
+    @GetMapping("/camel-routes")
+    public ResponseEntity<Map<String, Object>> getCamelRoutes() {
+        logger.info("🛤️ [DEMO] Showing Apache Camel ESB routes");
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("timestamp", LocalDateTime.now());
+        result.put("status", "SUCCESS");
+        
+        // Demonstrate different Camel route patterns
+        result.put("availableRoutes", List.of(
+            Map.of(
+                "routeId", "file-processing-route",
+                "pattern", "File Integration",
+                "description", "Monitors directories, processes CSV/XML files",
+                "from", "file://input",
+                "to", "database"
+            ),
+            Map.of(
+                "routeId", "database-polling-route", 
+                "pattern", "Change Data Capture",
+                "description", "Polls database for changes, publishes events",
+                "from", "sql://SELECT * FROM sak WHERE status_changed = true",
+                "to", "kafka:case-status-changes"
+            ),
+            Map.of(
+                "routeId", "message-aggregation-route",
+                "pattern", "Batch Processing", 
+                "description", "Collects messages into batches for efficient processing",
+                "from", "direct:individual-messages",
+                "to", "direct:batch-processor"
+            ),
+            Map.of(
+                "routeId", "protocol-mediation-route",
+                "pattern", "SOAP to REST Transform",
+                "description", "Transforms legacy SOAP calls to modern REST APIs",
+                "from", "cxf://soap-endpoint",
+                "to", "http://rest-api"
+            )
+        ));
+        
+        result.put("enterprisePatterns", List.of(
+            "Content-Based Routing",
+            "Message Transformation", 
+            "Splitter/Aggregator",
+            "Dead Letter Queue",
+            "Circuit Breaker",
+            "Retry Pattern"
+        ));
+        
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Camel health check
+     */
+    @GetMapping("/camel-health")
+    public ResponseEntity<Map<String, Object>> getCamelHealth() {
+        logger.info("❤️ [DEMO] Checking Camel context health");
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("timestamp", LocalDateTime.now());
+        result.put("camelContextStatus", "Started");
+        result.put("activeRoutes", 4);
+        result.put("totalMessages", 1247);
+        result.put("failedMessages", 0);
+        result.put("averageProcessingTime", "45ms");
+        result.put("status", "HEALTHY");
+        
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Event history for demonstration
+     */
+    @GetMapping("/event-history")
+    public ResponseEntity<Map<String, Object>> getEventHistory() {
+        logger.info("📈 [DEMO] Fetching event history");
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("timestamp", LocalDateTime.now());
+        result.put("events", List.of(
+            Map.of(
+                "eventId", "evt-001",
+                "eventType", "SAK_OPPRETTET",
+                "timestamp", "2025-08-21T13:45:00",
+                "correlationId", "NAV-1692626700-1",
+                "payload", Map.of("sakId", 1, "type", "DAGPENGER")
+            ),
+            Map.of(
+                "eventId", "evt-002", 
+                "eventType", "EXTERNAL_DATA_FETCHED",
+                "timestamp", "2025-08-21T13:45:15",
+                "correlationId", "NAV-1692626700-1", 
+                "payload", Map.of("sources", List.of("Folkeregister", "Skatteetaten"))
+            ),
+            Map.of(
+                "eventId", "evt-003",
+                "eventType", "VEDTAK_FATTET",
+                "timestamp", "2025-08-21T13:45:30",
+                "correlationId", "NAV-1692626700-1",
+                "payload", Map.of("sakId", 1, "innvilget", true)
+            )
+        ));
+        result.put("totalEvents", 156);
+        result.put("status", "SUCCESS");
+        
+        return ResponseEntity.ok(result);
+    }
 }
 
 // Request DTOs

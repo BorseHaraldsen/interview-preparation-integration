@@ -53,4 +53,11 @@ public class NoKafkaProducerService implements KafkaProducerInterface {
         logger.info("[SIMULATION] Health check event would be published to Kafka");
         logger.info("Status: Kafka producer simulation operational");
     }
+
+    @Override
+    public void sendGenericEvent(String topic, Object eventData) {
+        logger.info("[SIMULATION] Generic event would be published to Kafka topic: {}", topic);
+        logger.debug("[SIMULATION] Event data: {}", eventData);
+        logger.info("In production, this would be published to real Kafka topic for downstream processing");
+    }
 }

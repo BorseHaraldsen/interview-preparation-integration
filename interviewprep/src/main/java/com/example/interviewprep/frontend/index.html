@@ -318,13 +318,40 @@
 
         async function checkAppStatus() {
             try {
-                const response = await fetch(`${BASE_URL}/enterprise/health`);
-                if (response.ok) {
-                    document.getElementById('app-status').innerHTML = 
-                        '<span class="status-indicator status-online"></span>Spring Boot App: Online ✅';
-                } else {
-                    throw new Error('Not responding');
-                }
+                // Try multiple endpoints to check connectivity
+                let response;
+                
+                // First try the simple health endpoint
+                try {
+                    response = await fetch(`http://localhost:8080/interviewprep/health`);
+                    if (response.ok) {
+                        document.getElementById('app-status').innerHTML = 
+                            '<span class="status-indicator status-online"></span>Spring Boot App: Online ✅';
+                        return;
+                    }
+                } catch (e) {}
+                
+                // Try actuator health endpoint
+                try {
+                    response = await fetch(`http://localhost:8080/interviewprep/actuator/health`);
+                    if (response.ok) {
+                        document.getElementById('app-status').innerHTML = 
+                            '<span class="status-indicator status-online"></span>Spring Boot App: Online ✅';
+                        return;
+                    }
+                } catch (e) {}
+                
+                // Fallback to basic root endpoint
+                try {
+                    response = await fetch(`http://localhost:8080/interviewprep/`);
+                    if (response.ok || response.status === 401) { // 401 means server is running but secured
+                        document.getElementById('app-status').innerHTML = 
+                            '<span class="status-indicator status-online"></span>Spring Boot App: Online ✅ (Secured)';
+                        return;
+                    }
+                } catch (e) {}
+                
+                throw new Error('Not responding');
             } catch (error) {
                 document.getElementById('app-status').innerHTML = 
                     '<span class="status-indicator status-offline"></span>Spring Boot App: Offline ❌';

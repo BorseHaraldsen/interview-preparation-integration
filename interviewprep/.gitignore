@@ -154,8 +154,28 @@ application-prod.yml
 # Local development overrides
 application-local.yml
 
-#claude
+# Claude and documentation files
 CLAUDE.md
 .claude/settings.local.json
 claude-logs/
 *.claudeignore
+
+# Interview and demo documentation - exclude from commits
+INTERVIEW-DEMO-GUIDE.md
+STARTUP-GUIDE.md
+ARCHITECTURE.md
+HELP.md
+
+# Demo and tutorial files
+*DEMO*.md
+*GUIDE*.md
+*tutorial*.md
+*TUTORIAL*.md
+*notes*.md
+*NOTES*.md
+
+# Personal documentation and prep files
+interview-prep/
+demo-scripts/
+personal-notes/
+prep/

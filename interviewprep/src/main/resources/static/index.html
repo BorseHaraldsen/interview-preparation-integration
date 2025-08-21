@@ -189,17 +189,19 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚀 NAV Integration Demo</h1>
-            <p>Demonstrasjon av moderne integrasjonsmønstre for intervju</p>
-            <div style="margin-top: 15px;">
-                <span class="status-indicator status-online"></span>
-                <span id="app-status">Spring Boot App: Kobler til...</span>
+            <h1>🏛️ NAV Enterprise Integration Platform</h1>
+            <p>Complete Integration Platform - Event-Driven Architecture, ESB, External APIs, Dual Messaging</p>
+            <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; text-align: left;">
+                <div><span class="status-indicator status-online"></span><span id="app-status">Main App: Loading...</span></div>
+                <div><span class="status-indicator" id="kafka-status-indicator"></span><span id="kafka-status">Kafka: Checking...</span></div>
+                <div><span class="status-indicator" id="rabbitmq-status-indicator"></span><span id="rabbitmq-status">RabbitMQ: Checking...</span></div>
+                <div><span class="status-indicator" id="external-status-indicator"></span><span id="external-status">External APIs: Checking...</span></div>
             </div>
         </div>
 
         <!-- Quick Links -->
         <div class="demo-section">
-            <h2>🔗 Quick Links</h2>
+            <h2>🔗 Enterprise Platform Links</h2>
             <div class="quick-links">
                 <a href="http://localhost:8080/interviewprep/h2-console" target="_blank" class="quick-link">
                     🗄️ H2 Database Console
@@ -208,11 +210,40 @@
                     ❤️ Health Check
                 </a>
                 <a href="http://localhost:8080/interviewprep/actuator/metrics" target="_blank" class="quick-link">
-                    📊 Metrics
+                    📊 Application Metrics
+                </a>
+                <a href="#" onclick="alert('RabbitMQ not running - start with Docker: docker-compose up -d rabbitmq')" class="quick-link" style="background: #6c757d;">
+                    🐰 RabbitMQ (Not Running)
+                </a>
+                <a href="#" onclick="alert('Zipkin not running - start with Docker: docker-compose up -d zipkin')" class="quick-link" style="background: #6c757d;">
+                    🔍 Zipkin (Not Running)
                 </a>
                 <a href="#" onclick="testAllEndpoints()" class="quick-link">
-                    🧪 Test All APIs
+                    🧪 Test All Integration APIs
                 </a>
+            </div>
+        </div>
+
+        <!-- Enterprise Features Overview -->
+        <div class="demo-section">
+            <h2>🏗️ Enterprise Architecture Features</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
+                <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                    <h4>🚀 Event-Driven Architecture</h4>
+                    <p>• Kafka Pub/Sub for event streaming<br>• RabbitMQ queues for work distribution<br>• Apache Camel ESB routing patterns</p>
+                </div>
+                <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                    <h4>🌐 External Integrations</h4>
+                    <p>• 4 External services with different data formats<br>• XML, CSV, Fixed-width, Complex JSON<br>• Circuit breakers & retry patterns</p>
+                </div>
+                <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <h4>🔒 Production Patterns</h4>
+                    <p>• OAuth 2.0 security<br>• Distributed tracing<br>• Health checks & monitoring</p>
+                </div>
+                <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                    <h4>☸️ Kubernetes Ready</h4>
+                    <p>• Complete K8s manifests<br>• HPA & network policies<br>• Production-grade deployment</p>
+                </div>
             </div>
         </div>
 
@@ -272,25 +303,65 @@
         <div class="grid">
             <!-- External API Test -->
             <div class="demo-section">
-                <h2>🌐 Eksterne API Test</h2>
-                <p><strong>Test REST integrasjoner med resiliens</strong></p>
+                <h2>🌐 External API Integration</h2>
+                <p><strong>Test 4 different data format integrations</strong></p>
                 
                 <div class="form-group">
                     <label>Fødselsnummer:</label>
                     <input type="text" id="api-fnr" value="12345678901">
                 </div>
                 
-                <button class="btn" onclick="testExternalAPI()">🌐 Test Eksterne APIer</button>
+                <button class="btn" onclick="testExternalAPI()">🌐 Test All External APIs</button>
+                <button class="btn btn-secondary" onclick="testSpecificAPI('folkeregister')">📄 XML (Folkeregister)</button>
+                <button class="btn btn-secondary" onclick="testSpecificAPI('skatteetaten')">📊 Fixed-Width (Skatt)</button>
+                <button class="btn btn-secondary" onclick="testSpecificAPI('bank')">💳 JSON (Bank)</button>
+                <button class="btn btn-secondary" onclick="testSpecificAPI('aordningen')">📋 CSV (A-ord)</button>
                 <div id="api-response" class="response" style="display: none;"></div>
+            </div>
+
+            <!-- Dual Messaging Demo -->
+            <div class="demo-section">
+                <h2>📨 Dual Messaging Patterns</h2>
+                <p><strong>Kafka Pub/Sub vs RabbitMQ Queues</strong></p>
+                
+                <div class="form-group">
+                    <label>Message Type:</label>
+                    <select id="message-type">
+                        <option value="kafka-event">Kafka Event (Pub/Sub)</option>
+                        <option value="rabbitmq-task">RabbitMQ Task (Queue)</option>
+                        <option value="both">Both Patterns</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Message Content:</label>
+                    <input type="text" id="dual-message" value="Enterprise integration test">
+                </div>
+                
+                <button class="btn" onclick="testDualMessaging()">📨 Send Message</button>
+                <div id="dual-response" class="response" style="display: none;"></div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Apache Camel ESB Demo -->
+            <div class="demo-section">
+                <h2>🛤️ Apache Camel ESB Routes</h2>
+                <p><strong>Enterprise Service Bus patterns</strong></p>
+                
+                <button class="btn" onclick="testCamelRoutes()">🛤️ Test ESB Routes</button>
+                <button class="btn btn-secondary" onclick="viewCamelHealth()">❤️ Camel Health</button>
+                <div id="camel-response" class="response" style="display: none;"></div>
             </div>
 
             <!-- Auto Processing Test -->
             <div class="demo-section">
-                <h2>🤖 Automatisk Behandling</h2>
-                <p><strong>Test AI/ML automatisering</strong></p>
+                <h2>🤖 Event-Driven Case Processing</h2>
+                <p><strong>Complete automated workflow</strong></p>
                 
-                <button class="btn" onclick="testAutoProcessing()">🤖 Start Auto-behandling</button>
-                <button class="btn btn-secondary" onclick="viewWorkList()">📋 Vis Arbeidsliste</button>
+                <button class="btn" onclick="testAutoProcessing()">🤖 Start Event-Driven Processing</button>
+                <button class="btn btn-secondary" onclick="viewWorkList()">📋 View Work Queue</button>
+                <button class="btn btn-secondary" onclick="viewEventHistory()">📈 Event History</button>
                 <div id="auto-response" class="response" style="display: none;"></div>
             </div>
         </div>
@@ -313,6 +384,7 @@
         // Check app status on load
         window.onload = function() {
             checkAppStatus();
+            checkAllServices();
         };
 
         async function checkAppStatus() {
@@ -501,6 +573,138 @@
             element.textContent = content;
             element.className = `response ${type}`;
             element.style.display = 'block';
+        }
+
+        // New functions for enhanced enterprise features
+
+        async function checkAllServices() {
+            // Check Kafka status (mock mode info)
+            updateServiceStatus('kafka-status', 'kafka-status-indicator', 'Kafka: Mock Mode ✅', 'online');
+            
+            // Check RabbitMQ status (will be offline without Docker)
+            updateServiceStatus('rabbitmq-status', 'rabbitmq-status-indicator', 'RabbitMQ: Starting... ⏳', 'offline');
+            
+            // Check external services
+            checkExternalServices();
+        }
+
+        async function checkExternalServices() {
+            const services = [
+                { name: 'Folkeregister', port: 8081 },
+                { name: 'Skatteetaten', port: 8082 },
+                { name: 'Bank', port: 8083 },
+                { name: 'A-Ordningen', port: 8084 }
+            ];
+
+            let onlineCount = 0;
+            for (const service of services) {
+                try {
+                    const response = await fetch(`http://localhost:${service.port}/actuator/health`);
+                    if (response.ok) onlineCount++;
+                } catch (error) {
+                    // Service not running
+                }
+            }
+
+            const status = onlineCount > 0 
+                ? `External APIs: ${onlineCount}/4 Online ✅` 
+                : 'External APIs: Starting... ⏳';
+            const indicator = onlineCount > 0 ? 'online' : 'offline';
+            
+            updateServiceStatus('external-status', 'external-status-indicator', status, indicator);
+        }
+
+        function updateServiceStatus(statusId, indicatorId, message, type) {
+            document.getElementById(statusId).textContent = message;
+            const indicator = document.getElementById(indicatorId);
+            indicator.className = `status-indicator status-${type}`;
+        }
+
+        async function testSpecificAPI(service) {
+            const fnr = document.getElementById('api-fnr').value;
+            
+            try {
+                showResponse('api-response', `Testing ${service} API...`, 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/test-ekstern-api/${fnr}?service=${service}`);
+                const result = await response.json();
+                
+                showResponse('api-response', 
+                    `${service.toUpperCase()} API Response:\n` + JSON.stringify(result, null, 2), 
+                    response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResponse('api-response', `${service} API Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDualMessaging() {
+            const messageType = document.getElementById('message-type').value;
+            const message = document.getElementById('dual-message').value;
+            
+            try {
+                showResponse('dual-response', `Sending ${messageType} message...`, 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/dual-messaging`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        messageType: messageType,
+                        message: message 
+                    })
+                });
+
+                const result = await response.json();
+                showResponse('dual-response', 
+                    `Dual Messaging Result:\n` + JSON.stringify(result, null, 2), 
+                    response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResponse('dual-response', `Dual Messaging Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCamelRoutes() {
+            try {
+                showResponse('camel-response', 'Testing Apache Camel ESB routes...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/camel-routes`);
+                const result = await response.json();
+                
+                showResponse('camel-response', 
+                    `Apache Camel Routes:\n` + JSON.stringify(result, null, 2), 
+                    response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResponse('camel-response', `Camel Routes Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function viewCamelHealth() {
+            try {
+                showResponse('camel-response', 'Checking Camel health...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/camel-health`);
+                const result = await response.json();
+                
+                showResponse('camel-response', 
+                    `Camel Health Status:\n` + JSON.stringify(result, null, 2), 
+                    response.ok ? 'success' : 'error');
+            } catch (error) {
+                showResponse('camel-response', `Camel Health Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function viewEventHistory() {
+            try {
+                showResponse('auto-response', 'Fetching event history...', 'success');
+                
+                const response = await fetch(`${BASE_URL}/integrasjon-demo/event-history`);
+                const result = await response.json();
+                
+                showResponse('auto-response', 
+                    `Event History:\n` + JSON.stringify(result, null, 2), 
+                    'success');
+            } catch (error) {
+                showResponse('auto-response', `Event History Error: ${error.message}`, 'error');
+            }
         }
     </script>
 </body>

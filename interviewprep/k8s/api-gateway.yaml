@@ -1,0 +1,142 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: nav-integration
+  labels:
+    app: api-gateway
+    component: gateway
+spec:
+  replicas: 2  # High availability for gateway
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: api-gateway
+        image: nav/api-gateway:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: SERVER_PORT
+          value: "8080"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "kubernetes"
+        # Service discovery configuration
+        - name: FOLKEREGISTER_SERVICE_URL
+          value: "http://folkeregister-service:8081"
+        - name: SKATTEETATEN_SERVICE_URL
+          value: "http://skatteetaten-service:8082"
+        - name: BANK_SERVICE_URL
+          value: "http://bank-service:8083"
+        - name: AORDNINGEN_SERVICE_URL
+          value: "http://aordningen-service:8084"
+        - name: MAIN_APP_SERVICE_URL
+          value: "http://nav-integration-service:8080"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 45
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        # Graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway-service
+  namespace: nav-integration
+  labels:
+    app: api-gateway
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: api-gateway
+---
+# Ingress for external access to API Gateway
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nav-integration-ingress
+  namespace: nav-integration
+  labels:
+    app: api-gateway
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization"
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  rules:
+  - host: nav-integration.local  # Configure your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway-service
+            port:
+              number: 8080
+  # TLS configuration (optional)
+  # tls:
+  # - hosts:
+  #   - nav-integration.local
+  #   secretName: nav-integration-tls
+---
+# HorizontalPodAutoscaler for API Gateway
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: nav-integration
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

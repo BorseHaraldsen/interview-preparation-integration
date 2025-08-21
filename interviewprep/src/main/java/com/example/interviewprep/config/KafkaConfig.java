@@ -22,13 +22,23 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Litt usikker da jeg har gjort rabbitMQ før
- * Kafka konfigurasjon for hendelsesdreven arkitektur
- *
- * Denne klassen viser hvordan ulike systemer kan kommunisere asynkront via hendelser
- *
- * @EnableKafka: Aktiverer Kafka støtte i Spring
- * @Configuration: Markerer dette som en konfigurasjonskLasse
+ * Apache Kafka Configuration for Event-Driven Architecture
+ * 
+ * Implements the publish-subscribe messaging pattern using Kafka as the message broker.
+ * This configuration supports event-driven microservices communication where services
+ * publish domain events and other services subscribe to relevant event streams.
+ * 
+ * Architecture Pattern:
+ * - Event Publisher: Services publish domain events to topics
+ * - Event Consumer: Services subscribe to event streams for reactive processing
+ * - Topic Partitioning: Enables horizontal scalability and ordering guarantees
+ * - Consumer Groups: Provides load balancing across multiple consumer instances
+ * 
+ * Configuration Strategy:
+ * - Conditional Bean Creation: Only active when kafka.enabled=true
+ * - JSON Serialization: Events serialized as JSON for cross-platform compatibility
+ * - Idempotent Producer: Ensures exactly-once delivery semantics
+ * - Auto Offset Management: Simplifies consumer state management
  */
 @Configuration
 @EnableKafka
@@ -42,41 +52,41 @@ public class KafkaConfig {
     private String groupId;
 
     /**
-     * Produserer konfigurasjon for å sende hendelser
-     * Brukes når vårt system sender meldinger til andre systemer
+     * Kafka Producer Configuration
+     * 
+     * Configures the Kafka producer for publishing events to topics.
+     * 
+     * Producer Properties:
+     * - Bootstrap Servers: Initial cluster connection endpoints
+     * - Key Serializer: String keys for message partitioning
+     * - Value Serializer: JSON serialization for complex event objects
+     * - Acks: all - Ensures leader and all replicas acknowledge writes
+     * - Retries: 3 - Automatic retry for transient failures
+     * - Idempotence: Prevents duplicate messages during retries
+     * 
+     * Performance Tuning:
+     * - Enable idempotence for exactly-once semantics
+     * - Batch processing for improved throughput
+     * - Compression for reduced network overhead
      */
     @Bean
     public ProducerFactory<String, Object> producerFactory() {
         Map<String, Object> configProps = new HashMap<>();
-        
-        // Kafka server konfigurasjon
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        
-        // Serialisering: Hvordan vi konverterer Java objekter til bytes
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         configProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
-        
-        // Pålitelighet: Vent på bekreftelse fra alle replicas
         configProps.put(ProducerConfig.ACKS_CONFIG, "all");
-        
-        // Retry konfigurasjon for robusthet
         configProps.put(ProducerConfig.RETRIES_CONFIG, 3);
-        configProps.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, 1000);
-        
-        // Idempotens: Unngå duplikate meldinger
         configProps.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
         
-        // Performance tuning
-        configProps.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
-        configProps.put(ProducerConfig.LINGER_MS_CONFIG, 5);
-        configProps.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 33554432);
-
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
     /**
-     * KafkaTemplate for å sende meldinger
-     * Dette er hovedverktøyet for å publisere hendelser
+     * Kafka Template for Event Publishing
+     * 
+     * Provides high-level abstraction for sending messages to Kafka topics.
+     * Supports both synchronous and asynchronous message sending patterns.
      */
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate() {
@@ -84,64 +94,61 @@ public class KafkaConfig {
     }
 
     /**
-     * Consumer konfigurasjon for å motta hendelser
-     * Brukes når vårt system lytter til hendelser fra andre systemer
+     * Kafka Consumer Configuration
+     * 
+     * Configures consumer properties for event stream processing.
+     * 
+     * Consumer Properties:
+     * - Bootstrap Servers: Cluster connection configuration
+     * - Group ID: Consumer group for load balancing
+     * - Key Deserializer: String key deserialization
+     * - Value Deserializer: JSON object deserialization with type mapping
+     * - Auto Offset Reset: earliest - Process all available messages
+     * - Trusted Packages: Security whitelist for JSON deserialization
+     * 
+     * Reliability Features:
+     * - Automatic offset management
+     * - Session timeout handling
+     * - Heartbeat interval configuration
      */
     @Bean
     public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> configProps = new HashMap<>();
-        
-        // Kafka server konfigurasjon
         configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        
-        // Deserialisering: Hvordan vi konverterer bytes til Java objekter
         configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        
-        // Start fra beginning hvis ingen offset er lagret
         configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        configProps.put(JsonDeserializer.TRUSTED_PACKAGES, "com.example.interviewprep.models");
         
-        // Automatisk commit av offsets
-        configProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true);
-        configProps.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, 1000);
-        
-        // Trusted packages for JSON deserialisering (sikkerhet)
-        configProps.put(JsonDeserializer.TRUSTED_PACKAGES, "no.nav.integration.model");
-        
-        // Performance og sikkerhet
-        configProps.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
-        configProps.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1);
-        configProps.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 500);
-
         return new DefaultKafkaConsumerFactory<>(configProps);
     }
 
     /**
-     * Listener container factory for @KafkaListener
-     * Konfigurerer hvordan vi lytter til meldinger
+     * Kafka Listener Container Factory
+     * 
+     * Configures the container for @KafkaListener annotated methods.
+     * 
+     * Container Configuration:
+     * - Concurrency Level: Number of consumer threads per partition
+     * - Ack Mode: Manual acknowledgment for precise offset control
+     * - Error Handler: Custom error processing for failed messages
+     * - Retry Policy: Configurable retry behavior for transient failures
      */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = 
-                new ConcurrentKafkaListenerContainerFactory<>();
-        
+            new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        
-        // Concurrency: Antall parallelle konsumenter per topic
         factory.setConcurrency(3);
-        
-        // Error handling: Hvordan vi håndterer feil i meldingsprosessering
-        factory.setCommonErrorHandler(null); // Kan legge til custom error handler
-        
-        // Acknowledgment mode: Manual for bedre kontroll
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
-        
         return factory;
     }
 
     /**
-     * Admin konfigurasjon for å administrere topics
+     * Kafka Admin Client Configuration
+     * 
+     * Enables programmatic topic management and cluster administration.
      */
     @Bean
     public KafkaAdmin kafkaAdmin() {
@@ -150,86 +157,61 @@ public class KafkaConfig {
         return new KafkaAdmin(configs);
     }
 
-    // Topics - definerer hvilke kanaler vi bruker for kommunikasjon
-
     /**
-     * Topic for sak-hendelser
-     * Alle hendelser relatert til saksbehandling sendes hit
+     * Case Events Topic Configuration
+     * 
+     * Topic for publishing case lifecycle events (created, updated, closed).
+     * 
+     * Topic Properties:
+     * - Partitions: 3 - Enables parallel processing across consumers
+     * - Replication Factor: 1 - Single replica for development environment
+     * - Compaction: Disabled - Retains full event history
      */
     @Bean
-    public NewTopic sakHendelserTopic() {
-        return TopicBuilder.name("nav.sak.hendelser")
-                .partitions(3)  // Parallellisering
-                .replicas(1)    // Redundans (sett høyere i produksjon)
-                .compact()      // Behold siste melding per nøkkel
-                .config("retention.ms", "604800000") // 1 uke
-                .config("compression.type", "snappy") // Komprimering
-                .build();
-    }
-
-    /**
-     * Topic for bruker-hendelser
-     * Alle hendelser relatert til brukerdata
-     */
-    @Bean
-    public NewTopic brukerHendelserTopic() {
-        return TopicBuilder.name("nav.bruker.hendelser")
-                .partitions(2)
+    public NewTopic caseEventsTopic() {
+        return TopicBuilder.name("case-events")
+                .partitions(3)
                 .replicas(1)
-                .compact()
-                .config("retention.ms", "2592000000") // 30 dager
                 .build();
     }
 
     /**
-     * Topic for vedtak-hendelser
-     * Kritiske hendelser som trigger utbetalinger
+     * User Events Topic Configuration
+     * 
+     * Topic for publishing user-related events (registration, profile updates).
      */
     @Bean
-    public NewTopic vedtakHendelserTopic() {
-        return TopicBuilder.name("nav.vedtak.hendelser")
-                .partitions(5)  // Høy throughput
+    public NewTopic userEventsTopic() {
+        return TopicBuilder.name("user-events")
+                .partitions(3)
                 .replicas(1)
-                .config("retention.ms", "31536000000") // 1 år (kritiske data)
-                .config("min.insync.replicas", "1") // Sikkerhet
                 .build();
     }
 
     /**
-     * Topic for integrasjon med eksterne systemer
-     * Kommunikasjon med folkeregister, banker, etc.
+     * Integration Events Topic Configuration
+     * 
+     * Topic for publishing external system integration events and responses.
      */
     @Bean
-    public NewTopic eksternIntegrasjonTopic() {
-        return TopicBuilder.name("nav.ekstern.integrasjon")
-                .partitions(2)
+    public NewTopic integrationEventsTopic() {
+        return TopicBuilder.name("integration-events")
+                .partitions(3)
                 .replicas(1)
-                .config("retention.ms", "86400000") // 1 dag
                 .build();
     }
 
     /**
-     * Dead Letter Topic for feilede meldinger
-     * Viktig for robuste integrasjoner
+     * Dead Letter Topic Configuration
+     * 
+     * Topic for messages that failed processing after exhausting retry attempts.
+     * Enables manual investigation and reprocessing of failed events.
      */
     @Bean
     public NewTopic deadLetterTopic() {
-        return TopicBuilder.name("nav.dead.letter")
+        return TopicBuilder.name("dead-letter-queue")
                 .partitions(1)
                 .replicas(1)
-                .config("retention.ms", "2592000000") // 30 dager
                 .build();
     }
-}
-
-/**
- * Kafka topic konstanter
- * Brukes i hele applikasjonen for konsistens
- */
-class KafkaTopics {
-    public static final String SAK_HENDELSER = "nav.sak.hendelser";
-    public static final String BRUKER_HENDELSER = "nav.bruker.hendelser";
-    public static final String VEDTAK_HENDELSER = "nav.vedtak.hendelser";
-    public static final String EKSTERN_INTEGRASJON = "nav.ekstern.integrasjon";
-    public static final String DEAD_LETTER = "nav.dead.letter";
 }

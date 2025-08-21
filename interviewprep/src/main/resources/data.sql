@@ -56,17 +56,8 @@ INSERT INTO sak (bruker_id, type, status, beskrivelse, opprettet_tid, sist_endre
 (4, 'AAP', 'VENTER_DOKUMENTASJON', 'Kompleks AAP-sak - venter på spesialistuttalelse', DATEADD('DAY', -30, CURRENT_TIMESTAMP), DATEADD('DAY', -25, CURRENT_TIMESTAMP));
 
 -- =============================================================================
--- SYNC STATUS TABELL FOR INTEGRASJONER
+-- SYNC STATUS DATA FOR INTEGRASJONER
 -- =============================================================================
--- Oppretter SYNC_STATUS tabell for database polling integrasjoner
-CREATE TABLE IF NOT EXISTS sync_status (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    sync_type VARCHAR(50) NOT NULL,
-    last_processed TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_sync_type (sync_type)
-);
-
 -- Initialdatapunkt for synkroniseringsoperasjoner
 INSERT INTO sync_status (sync_type, last_processed) VALUES 
 ('CASE_SYNC', DATEADD('DAY', -1, CURRENT_TIMESTAMP)),

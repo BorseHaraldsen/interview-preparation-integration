@@ -1,0 +1,258 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nav-integration-app
+  namespace: nav-integration
+  labels:
+    app: nav-integration-app
+    component: main-application
+spec:
+  replicas: 3  # Multiple replicas for high availability
+  selector:
+    matchLabels:
+      app: nav-integration-app
+  template:
+    metadata:
+      labels:
+        app: nav-integration-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/interviewprep/actuator/prometheus"
+    spec:
+      containers:
+      - name: nav-integration-app
+        image: nav/integration-platform:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        # Spring configuration
+        - name: SPRING_PROFILES_ACTIVE
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: SPRING_PROFILES_ACTIVE
+        - name: SERVER_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: SERVER_PORT
+        - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+        
+        # Database configuration
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgres:5432/navdb"
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: POSTGRES_USER
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nav-integration-secrets
+              key: POSTGRES_PASSWORD
+        - name: SPRING_JPA_DATABASE_PLATFORM
+          value: "org.hibernate.dialect.PostgreSQLDialect"
+        - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+          value: "update"
+        
+        # Kafka configuration
+        - name: KAFKA_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: KAFKA_ENABLED
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: KAFKA_BOOTSTRAP_SERVERS
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: "nav-integration-group"
+        - name: SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET
+          value: "earliest"
+        
+        # RabbitMQ configuration
+        - name: SPRING_RABBITMQ_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: RABBITMQ_HOST
+        - name: SPRING_RABBITMQ_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: RABBITMQ_PORT
+        - name: SPRING_RABBITMQ_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: RABBITMQ_USERNAME
+        - name: SPRING_RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nav-integration-secrets
+              key: RABBITMQ_PASSWORD
+        - name: SPRING_RABBITMQ_VIRTUAL_HOST
+          value: "nav"
+        - name: SPRING_RABBITMQ_PUBLISHER_CONFIRM_TYPE
+          value: "correlated"
+        - name: SPRING_RABBITMQ_PUBLISHER_RETURNS
+          value: "true"
+        
+        # External service URLs (through API Gateway)
+        - name: EKSTERN_INTEGRASJON_API_GATEWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: API_GATEWAY_URL
+        - name: EKSTERN_INTEGRASJON_FOLKEREGISTER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: FOLKEREGISTER_URL
+        - name: EKSTERN_INTEGRASJON_SKATTEETATEN_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: SKATTEETATEN_URL
+        - name: EKSTERN_INTEGRASJON_BANK_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: BANK_URL
+        - name: EKSTERN_INTEGRASJON_AORDNINGEN_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nav-integration-config
+              key: AORDNINGEN_URL
+        
+        # Security configuration
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nav-integration-secrets
+              key: JWT_SECRET
+        
+        # JVM tuning for containers
+        - name: JAVA_OPTS
+          value: "-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -XX:+UseContainerSupport"
+        
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /interviewprep/actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /interviewprep/actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Startup probe for slow-starting applications
+        startupProbe:
+          httpGet:
+            path: /interviewprep/actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30  # Allow up to 5 minutes for startup
+        
+        # Graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 20"]
+      
+      # Wait for dependencies to be ready
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z postgres 5432; do echo "Waiting for postgres..."; sleep 2; done']
+      - name: wait-for-kafka
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z kafka 9092; do echo "Waiting for kafka..."; sleep 2; done']
+      - name: wait-for-rabbitmq
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z rabbitmq 5672; do echo "Waiting for rabbitmq..."; sleep 2; done']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nav-integration-service
+  namespace: nav-integration
+  labels:
+    app: nav-integration-app
+    component: main-application
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: nav-integration-app
+---
+# HorizontalPodAutoscaler for main application
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nav-integration-app-hpa
+  namespace: nav-integration
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nav-integration-app
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Scale up/down behavior
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60

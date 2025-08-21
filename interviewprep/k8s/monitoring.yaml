@@ -1,0 +1,297 @@
+# Redis for caching and session storage
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: nav-integration
+  labels:
+    app: redis
+    component: cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: nav-integration
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  selector:
+    app: redis
+---
+# Zipkin for distributed tracing
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipkin
+  namespace: nav-integration
+  labels:
+    app: zipkin
+    component: tracing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zipkin
+  template:
+    metadata:
+      labels:
+        app: zipkin
+    spec:
+      containers:
+      - name: zipkin
+        image: openzipkin/zipkin:2.24
+        ports:
+        - containerPort: 9411
+          name: zipkin
+        env:
+        - name: STORAGE_TYPE
+          value: "mem"
+        - name: JAVA_OPTS
+          value: "-XX:MaxRAMPercentage=75.0"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9411
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9411
+          initialDelaySeconds: 10
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zipkin
+  namespace: nav-integration
+  labels:
+    app: zipkin
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9411
+    targetPort: 9411
+    name: zipkin
+  selector:
+    app: zipkin
+---
+# NodePort service for external access to Zipkin UI
+apiVersion: v1
+kind: Service
+metadata:
+  name: zipkin-ui
+  namespace: nav-integration
+  labels:
+    app: zipkin
+    service: ui
+spec:
+  type: NodePort
+  ports:
+  - port: 9411
+    targetPort: 9411
+    nodePort: 30411
+    name: zipkin
+  selector:
+    app: zipkin
+---
+# Prometheus for metrics collection (simplified setup)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: nav-integration
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    scrape_configs:
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - nav-integration
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+      
+      - job_name: 'nav-integration-app'
+        static_configs:
+        - targets: ['nav-integration-service:8080']
+        metrics_path: '/interviewprep/actuator/prometheus'
+        scrape_interval: 10s
+      
+      - job_name: 'rabbitmq'
+        static_configs:
+        - targets: ['rabbitmq:15692']
+        metrics_path: '/metrics'
+      
+      - job_name: 'kafka'
+        static_configs:
+        - targets: ['kafka:9101']
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: nav-integration
+  labels:
+    app: prometheus
+    component: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        ports:
+        - containerPort: 9090
+          name: prometheus
+        args:
+        - --config.file=/etc/prometheus/prometheus.yml
+        - --storage.tsdb.path=/prometheus
+        - --storage.tsdb.retention.time=30d
+        - --web.console.libraries=/etc/prometheus/console_libraries
+        - --web.console.templates=/etc/prometheus/consoles
+        - --web.enable-lifecycle
+        volumeMounts:
+        - name: prometheus-config
+          mountPath: /etc/prometheus/prometheus.yml
+          subPath: prometheus.yml
+        - name: prometheus-storage
+          mountPath: /prometheus
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: prometheus-config
+        configMap:
+          name: prometheus-config
+      - name: prometheus-storage
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: nav-integration
+  labels:
+    app: prometheus
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9090
+    targetPort: 9090
+    name: prometheus
+  selector:
+    app: prometheus
+---
+# NodePort service for external access to Prometheus UI
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-ui
+  namespace: nav-integration
+  labels:
+    app: prometheus
+    service: ui
+spec:
+  type: NodePort
+  ports:
+  - port: 9090
+    targetPort: 9090
+    nodePort: 30090
+    name: prometheus
+  selector:
+    app: prometheus

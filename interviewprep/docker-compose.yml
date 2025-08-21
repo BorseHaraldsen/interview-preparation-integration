@@ -192,6 +192,144 @@ services:
     networks:
       - nav-network
 
+  # RabbitMQ Message Broker (for message queue patterns)
+  # Demonstrates point-to-point messaging vs Kafka's pub/sub approach
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: nav-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: nav_user
+      RABBITMQ_DEFAULT_PASS: nav_password
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # External Service: Folkeregister API (Population Register)
+  # Simulates Norway's central person registry for citizen data
+  folkeregister-api:
+    build:
+      context: ./external-services/folkeregister
+      dockerfile: Dockerfile
+    container_name: nav-folkeregister-api
+    ports:
+      - "8091:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: external-service
+      SPRING_DATASOURCE_URL: jdbc:h2:mem:folkeregister;DB_CLOSE_DELAY=-1
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # External Service: Skatteetaten API (Tax Authority)  
+  # Handles tax information and income verification
+  skatteetaten-api:
+    build:
+      context: ./external-services/skatteetaten
+      dockerfile: Dockerfile
+    container_name: nav-skatteetaten-api
+    ports:
+      - "8092:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: external-service
+      SPRING_DATASOURCE_URL: jdbc:h2:mem:skatt;DB_CLOSE_DELAY=-1
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # External Service: Bank API
+  # Simulates banking integration for payment verification
+  bank-api:
+    build:
+      context: ./external-services/bank
+      dockerfile: Dockerfile
+    container_name: nav-bank-api
+    ports:
+      - "8093:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: external-service
+      SPRING_DATASOURCE_URL: jdbc:h2:mem:bank;DB_CLOSE_DELAY=-1
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # External Service: A-Ordningen API (Employment Registry)
+  # Handles employment and salary information
+  a-ordningen-api:
+    build:
+      context: ./external-services/a-ordningen
+      dockerfile: Dockerfile
+    container_name: nav-a-ordningen-api
+    ports:
+      - "8094:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: external-service
+      SPRING_DATASOURCE_URL: jdbc:h2:mem:aordningen;DB_CLOSE_DELAY=-1
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Spring Cloud Gateway - API Gateway
+  # Routes requests to appropriate services and handles cross-cutting concerns
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: nav-api-gateway
+    ports:
+      - "8090:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: gateway
+      # External service URLs for routing
+      FOLKEREGISTER_SERVICE_URL: http://folkeregister-api:8080
+      SKATTEETATEN_SERVICE_URL: http://skatteetaten-api:8080
+      BANK_SERVICE_URL: http://bank-api:8080
+      A_ORDNINGEN_SERVICE_URL: http://a-ordningen-api:8080
+      MAIN_APP_SERVICE_URL: http://app:8080
+    depends_on:
+      app:
+        condition: service_healthy
+      folkeregister-api:
+        condition: service_healthy
+      skatteetaten-api:
+        condition: service_healthy
+      bank-api:
+        condition: service_healthy
+      a-ordningen-api:
+        condition: service_healthy
+    networks:
+      - nav-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # Nginx reverse proxy og static files
   nginx:
     image: nginx:alpine
@@ -202,7 +340,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./frontend:/usr/share/nginx/html
     depends_on:
-      - app
+      - api-gateway
     networks:
       - nav-network
 
@@ -220,6 +358,8 @@ volumes:
     name: nav_kafka_data
   redis_data:
     name: nav_redis_data
+  rabbitmq_data:
+    name: nav_rabbitmq_data
   prometheus_data:
     name: nav_prometheus_data
   grafana_data:
